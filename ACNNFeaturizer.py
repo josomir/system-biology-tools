@@ -35,10 +35,11 @@ class ACNNFeaturizer():
                 if not os.path.exists(pdb_path) and pdbid != '':
                     print ("Downloading PDB structure for", pdbid)
                     fixer = PDBFixer(pdbid=pdbid)
-                    PDBFile.writeFile(fixer.topology, fixer.positions,
-                                    open(pdb_path, 'w'))
+                    PDBFile.writeFile(fixer.topology, fixer.positions, open(pdb_path, 'w'))
 
     def featurize(self):
+        total_count = 0
+        failed_count = 0
         start_time = time.time()
         raw_dataset = self.loadCSVDataset()
         downloadPDBFiles = self.downloadPDBFiles(raw_dataset)
@@ -48,6 +49,7 @@ class ACNNFeaturizer():
                                                     self.max_num_neighbors, self.neighbor_cutoff)
         complex_featurizers = {}
         for pdbid_1, pdbid_2, complex_id in zip(raw_dataset['pdbid_1'], raw_dataset['pdbid_2'], raw_dataset['complex_id']):
+            total_count += 1
             pdbid_1_file = "{0}.pdb".format(os.path.join(self.pdbs_dir, pdbid_1))
             pdbid_2_file = "{0}.pdb".format(os.path.join(self.pdbs_dir, pdbid_2))
             if pdbid_1 and pdbid_2:
@@ -61,6 +63,7 @@ class ACNNFeaturizer():
                         frag2_neighbor_list, frag2_z, complex_coords, complex_neighbor_list,
                         complex_z]
                 except:
+                    failed_count += 1
                     print (" Featurizier couldn't get protein complex structure: ", complex_id)
 
         new = pd.DataFrame.from_dict(complex_featurizers, orient='index',  
@@ -70,17 +73,9 @@ class ACNNFeaturizer():
         raw_dataset = pd.merge(raw_dataset, new, left_on='complex_id', right_index=True, how='right')
 
         print ("--- %s seconds ---" % (time.time() - start_time))
+        print ("{0}/{1} complexes featurized".format(total_count-failed_count, total_count))
         # Save dataset to CSV and pickle file
         print ("Saving featurized dataset.")
         raw_dataset.to_pickle(self.featurized_dataset_name)
         raw_dataset.to_csv(self.featurized_dataset_name + '.csv')
         return raw_dataset
-
-
-
-
-
-
-
-
-
